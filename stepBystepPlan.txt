@@ -1,7 +1,7 @@
 Example Step-by-Step Development Plan
 
     Hello World Server: Listen on TCP socket, accept one client, print hello, close.
-
+Done
     Command Loop: Read commands from client, echo back, quit on QUIT.
 
     Implement Command Parsing: Recognize USER, PASS, LIST, RETR, STOR, QUIT.

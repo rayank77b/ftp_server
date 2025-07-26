@@ -1,4 +1,4 @@
 *.o
 *.d
-ftp_server
+ftpserver
 .vscode
