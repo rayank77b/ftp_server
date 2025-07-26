@@ -1,0 +1,4 @@
+*.o
+*.d
+ftp_server
+.vscode
