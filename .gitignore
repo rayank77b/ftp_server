@@ -1,4 +1,5 @@
 *.o
 *.d
 ftpserver
+ftpserver.log
 .vscode
