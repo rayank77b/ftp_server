@@ -1,7 +1,7 @@
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -O2
 TARGET = ftpserver
-SRC = main.cpp
+SRC = main.cpp FtpServer.cpp
 
 all: $(TARGET)
 
