@@ -1,3 +1,7 @@
+add userpass sha256 to users.txt:
+echo -n ray | sha256sum
+ray:andoutputhere
+
 
 What Does an FTP Server Do?
 

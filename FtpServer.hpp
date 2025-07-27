@@ -7,6 +7,8 @@
 #include <vector>
 #include <thread>
 
+#include "UserAuth.hpp"
+
 
 
 class FtpServer {
@@ -35,4 +37,7 @@ private:
 
     struct sockaddr_in addr;
     socklen_t addrlen;
+
+    UserAuth userauth_;
+
 };

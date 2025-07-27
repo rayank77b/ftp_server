@@ -32,6 +32,13 @@ FtpServer::~FtpServer() {
 }
 
 void FtpServer::run() {
+
+    // load userfile
+    if (!userauth_.loadFromFile("users.txt")) {
+        Logger::log(Logger::ERROR, "Failed to load user file users.txt");
+        return;
+    }
+
     // 1. Create socket
     server_fd_ = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd_ == -1) {
@@ -108,13 +115,27 @@ void FtpServer::handleSession(int client_fd, const std::string& client_ip, int c
 
         if (cmd == "USER") {
             last_user = arg;
-            std::string reply = "331 Username ok, need password\r\n";
-            send(client_fd, reply.c_str(), reply.length(), 0);
+            if (userauth_.checkPassword(last_user, "")) {
+                std::string reply = "230 User logged in, proceed\r\n"; // In case of empty password allowed
+                logged_in = true;
+                send(client_fd, reply.c_str(), reply.length(), 0);
+            } else {
+                std::string reply = "331 Username ok, need password\r\n";
+                send(client_fd, reply.c_str(), reply.length(), 0);
+            }
         } else if (cmd == "PASS") {
-            // Accept any password
-            logged_in = true;
-            std::string reply = "230 User logged in, proceed\r\n";
-            send(client_fd, reply.c_str(), reply.length(), 0);
+            if (last_user.empty()) {
+                std::string reply = "503 Login with USER first\r\n";
+                send(client_fd, reply.c_str(), reply.length(), 0);
+            } else if (userauth_.checkPassword(last_user, arg)) {
+                logged_in = true;
+                std::string reply = "230 User logged in, proceed\r\n";
+                send(client_fd, reply.c_str(), reply.length(), 0);
+            } else {
+                std::string reply = "530 Login incorrect\r\n";
+                send(client_fd, reply.c_str(), reply.length(), 0);
+                last_user.clear();
+            }
         } else if (cmd == "NOOP") {
             std::string reply = "200 NOOP ok\r\n";
             send(client_fd, reply.c_str(), reply.length(), 0);
@@ -122,6 +143,9 @@ void FtpServer::handleSession(int client_fd, const std::string& client_ip, int c
             std::string reply = "221 Goodbye\r\n";
             send(client_fd, reply.c_str(), reply.length(), 0);
             running = false;
+        } else if (!logged_in && cmd != "QUIT" && cmd != "NOOP") {
+            std::string reply = "530 Please login with USER and PASS\r\n";
+            send(client_fd, reply.c_str(), reply.length(), 0);
         } else if (cmd == "PASV") {
             if (openPassiveDataConn(dataconn, client_fd)) {
                 // Send PASV reply (RFC 959 format: 227 Entering Passive Mode (h1,h2,h3,h4,p1,p2))
