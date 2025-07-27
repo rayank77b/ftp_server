@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -O2
+CXXFLAGS = -std=c++17 -Wall -O2 -pthread
 TARGET = ftpserver
 SRC = main.cpp FtpServer.cpp Logger.cpp ErrorHandler.cpp CommandParser.cpp
 

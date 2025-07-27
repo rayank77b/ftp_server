@@ -57,21 +57,25 @@ void FtpServer::run() {
     }
     Logger::log(Logger::INFO, "FTP server Listening on port " + std::to_string(port_) + "...");
 
-    // 4. Accept a client connection
-    struct sockaddr_in client_addr{};
-    socklen_t client_len = sizeof(client_addr);
-    int client_fd = accept(server_fd_,  (struct sockaddr*)&client_addr, &client_len);
-    if (client_fd == -1) {
-        ErrorHandler::handleError("Accept failed");
-        return;
-    }
-    // Log client IP and port
-    std::string client_ip = inet_ntoa(client_addr.sin_addr);
-    int client_port = ntohs(client_addr.sin_port);
-    Logger::log(Logger::INFO, "Client connected: " + client_ip + ":" + std::to_string(client_port));
+    // 4. Accept connections in a loop (multi-client)
+    while (true) {
+        struct sockaddr_in client_addr{};
+        socklen_t client_len = sizeof(client_addr);
+        int client_fd = accept(server_fd_, (struct sockaddr*)&client_addr, &client_len);
+        if (client_fd == -1) {
+            Logger::log(Logger::ERROR, "Accept failed");
+            continue;
+        }
+        std::string client_ip = inet_ntoa(client_addr.sin_addr);
+        int client_port = ntohs(client_addr.sin_port);
+        Logger::log(Logger::INFO, "Client connected: " + client_ip + ":" + std::to_string(client_port));
 
-    // 5. Handle Session
-    handleSession(client_fd, client_ip, client_port);
+        // Launch a thread for each client
+        std::thread([this, client_fd, client_ip, client_port]() {
+            handleSession(client_fd, client_ip, client_port);
+            Logger::log(Logger::INFO, "Client disconnected: " + client_ip + ":" + std::to_string(client_port));
+        }).detach();
+    }
    
 }
 
