@@ -1,21 +1,23 @@
 #include <iostream>
-#include <cstring>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <limits.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <cstdlib>
 #include <cstdio>
 #include <vector>
 #include <sstream>
+#include <libgen.h> // dirname
+#include <cstring>  // for strdup
 
 #include "FtpServer.hpp"
 #include "Logger.hpp"
 #include "ErrorHandler.hpp"
 #include "CommandParser.hpp"
 
-FtpServer::FtpServer(int port)
-    : port_(port), server_fd_(-1) {
+FtpServer::FtpServer(int port, const std::string& root_dir)
+    : port_(port), server_fd_(-1), root_dir_(root_dir) {
 
     addr = {};
     addrlen = sizeof(addr);
@@ -87,6 +89,9 @@ void FtpServer::run() {
 }
 
 void FtpServer::handleSession(int client_fd, const std::string& client_ip, int client_port) {
+    // change to ftp_root
+    //chdir(root_dir_.c_str());
+
     // Send welcome message
     const char* welcome = "220 Simple FTP Server Ready\r\n";
     if(send(client_fd, welcome, strlen(welcome), 0)==-1)
@@ -175,8 +180,19 @@ void FtpServer::handleSession(int client_fd, const std::string& client_ip, int c
             std::string reply = "150 Here comes the directory listing\r\n";
             send(client_fd, reply.c_str(), reply.length(), 0);
 
-            // Run 'ls -l', send output
-            FILE* ls = popen("ls -l", "r");
+            // Run 'ls -l path', send output
+            std::string listdir = resolvePath(root_dir_, arg.empty() ? "." : arg);
+            Logger::log(Logger::INFO, "listdir: "+listdir);
+
+            if (listdir.empty()) {
+                std::string reply = "550 Invalid directory\r\n";
+                send(client_fd, reply.c_str(), reply.length(), 0);
+                close(data_fd);
+                closeDataConn(dataconn);
+                continue;
+            }
+            std::string cmd = "ls -l " + listdir;
+            FILE* ls = popen(cmd.c_str(), "r");
             if (ls) {
                 char lbuf[1024];
                 while (fgets(lbuf, sizeof(lbuf), ls)) {
@@ -205,7 +221,15 @@ void FtpServer::handleSession(int client_fd, const std::string& client_ip, int c
                 closeDataConn(dataconn);
                 continue;
             }
-            FILE* f = fopen(arg.c_str(), "rb");
+            std::string filepath = resolvePath(root_dir_, arg);
+            if (filepath.empty()) {
+                std::string reply = "550 File not found\r\n";
+                send(client_fd, reply.c_str(), reply.length(), 0);
+                close(data_fd);
+                closeDataConn(dataconn);
+                continue;
+            }
+            FILE* f = fopen(filepath.c_str(), "rb");
             if (!f) {
                 std::string reply = "550 File not found\r\n";
                 send(client_fd, reply.c_str(), reply.length(), 0);
@@ -241,7 +265,15 @@ void FtpServer::handleSession(int client_fd, const std::string& client_ip, int c
                 closeDataConn(dataconn);
                 continue;
             }
-            FILE* f = fopen(arg.c_str(), "wb");
+            if (!isPathAllowed(root_dir_, arg)) {
+                std::string reply = "550 Invalid path\r\n";
+                send(client_fd, reply.c_str(), reply.length(), 0);
+                close(data_fd);
+                closeDataConn(dataconn);
+                continue;
+            }
+            std::string filepath = root_dir_ + "/" + arg;
+            FILE* f = fopen(filepath.c_str(), "wb");
             if (!f) {
                 std::string reply = "550 Cannot open file for writing\r\n";
                 send(client_fd, reply.c_str(), reply.length(), 0);
@@ -322,4 +354,41 @@ void FtpServer::closeDataConn(DataConn& dataconn) {
     dataconn.listen_fd = -1;
     dataconn.ready = false;
     dataconn.port = 0;
+}
+
+// Returns the real absolute path, or "" on error
+std::string FtpServer::resolvePath(const std::string& root, const std::string& user_path) {
+    std::string candidate = root + "/" + user_path;
+
+    char absbuf[PATH_MAX];
+    if (realpath(candidate.c_str(), absbuf) == nullptr) return "";
+
+    std::string abs(absbuf);
+    // Ensure abs starts with root's real path
+    char rootbuf[PATH_MAX];
+    if (realpath(root.c_str(), rootbuf) == nullptr) return "";
+    
+    std::string absroot(rootbuf);
+    if (abs.compare(0, absroot.size(), absroot) != 0) return ""; // Outside jail!
+    
+    return abs;
+}
+
+bool FtpServer::isPathAllowed(const std::string& root, const std::string& user_path) {
+    // Find parent directory
+    std::string candidate = root + "/" + user_path;
+    char* cand_dup = strdup(candidate.c_str()); // dirname may modify the input
+    std::string parent_dir = dirname(cand_dup);
+    free(cand_dup);
+
+    char parent_abs[PATH_MAX];
+    if (realpath(parent_dir.c_str(), parent_abs) == nullptr)
+        return false; // Parent does not exist
+    char root_abs[PATH_MAX];
+    if (realpath(root.c_str(), root_abs) == nullptr)
+        return false;
+    // Must be inside jail
+    std::string abs_parent(parent_abs);
+    std::string abs_root(root_abs);
+    return abs_parent.compare(0, abs_root.size(), abs_root) == 0;
 }

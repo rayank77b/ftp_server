@@ -1,27 +1,27 @@
 Example Step-by-Step Development Plan
 
-    Hello World Server: Listen on TCP socket, accept one client, print hello, close.
-Done
-    Command Loop: Read commands from client, echo back, quit on QUIT.
+Done: Hello World Server: Listen on TCP socket, accept one client, print hello, close.
 
-    Implement Command Parsing: Recognize USER, PASS, LIST, RETR, STOR, QUIT.
+Done: Command Loop: Read commands from client, echo back, quit on QUIT.
 
-    Add Simple File Listing and Download (LIST/RETR).
+Done: Implement Command Parsing: Recognize USER, PASS, LIST, RETR, STOR, QUIT.
 
-    Add PASV Mode: Open data socket for file transfer.
+Done: Add Simple File Listing and Download (LIST/RETR).
 
-    Implement STOR (file upload).
+Done: Add PASV Mode: Open data socket for file transfer.
 
-    Multi-client support (optional, e.g., using std::thread).
+Done: Implement STOR (file upload).
 
-    Add authentication (optional, simple hard-coded user/pass).
+Done: Multi-client support (optional, e.g., using std::thread).
 
-    Improve error handling, logging.
+Done: Add authentication (optional, simple hard-coded user/pass).
+
+Done: Improve error handling, logging.
 
 
 Optional (For Later)
 
-    Add real authentication.
+Done: Add real authentication.
 
     Improve security.
 
