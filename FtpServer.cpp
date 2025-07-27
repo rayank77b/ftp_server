@@ -164,6 +164,78 @@ void FtpServer::handleSession(int client_fd, const std::string& client_ip, int c
         } else if (cmd == "NOOP") {
             std::string reply = "200 NOOP ok\r\n";
             send(client_fd, reply.c_str(), reply.length(), 0);
+        } else if (cmd == "RETR") {
+            if (!dataconn.ready) {
+                std::string reply = "425 Use PASV first\r\n";
+                send(client_fd, reply.c_str(), reply.length(), 0);
+                continue;
+            }
+            int data_fd = acceptPassiveDataConn(dataconn);
+            if (data_fd == -1) {
+                std::string reply = "425 Data connection failed\r\n";
+                send(client_fd, reply.c_str(), reply.length(), 0);
+                closeDataConn(dataconn);
+                continue;
+            }
+            FILE* f = fopen(arg.c_str(), "rb");
+            if (!f) {
+                std::string reply = "550 File not found\r\n";
+                send(client_fd, reply.c_str(), reply.length(), 0);
+                close(data_fd);
+                closeDataConn(dataconn);
+                continue;
+            }
+            std::string reply = "150 Opening data connection for file transfer\r\n";
+            send(client_fd, reply.c_str(), reply.length(), 0);
+
+            char filebuf[4096];
+            size_t n;
+            while ((n = fread(filebuf, 1, sizeof(filebuf), f)) > 0) {
+                if (send(data_fd, filebuf, n, 0) < 0) break;
+            }
+            fclose(f);
+            close(data_fd);
+            closeDataConn(dataconn);
+            dataconn.ready = false;
+            reply = "226 Transfer complete\r\n";
+            send(client_fd, reply.c_str(), reply.length(), 0);
+
+        } else if (cmd == "STOR") {
+            if (!dataconn.ready) {
+                std::string reply = "425 Use PASV first\r\n";
+                send(client_fd, reply.c_str(), reply.length(), 0);
+                continue;
+            }
+            int data_fd = acceptPassiveDataConn(dataconn);
+            if (data_fd == -1) {
+                std::string reply = "425 Data connection failed\r\n";
+                send(client_fd, reply.c_str(), reply.length(), 0);
+                closeDataConn(dataconn);
+                continue;
+            }
+            FILE* f = fopen(arg.c_str(), "wb");
+            if (!f) {
+                std::string reply = "550 Cannot open file for writing\r\n";
+                send(client_fd, reply.c_str(), reply.length(), 0);
+                close(data_fd);
+                closeDataConn(dataconn);
+                continue;
+            }
+            std::string reply = "150 Ok to send data\r\n";
+            send(client_fd, reply.c_str(), reply.length(), 0);
+
+            char filebuf[4096];
+            ssize_t n;
+            while ((n = recv(data_fd, filebuf, sizeof(filebuf), 0)) > 0) {
+                fwrite(filebuf, 1, n, f);
+            }
+            fclose(f);
+            close(data_fd);
+            closeDataConn(dataconn);
+            dataconn.ready = false;
+            reply = "226 Transfer complete\r\n";
+            send(client_fd, reply.c_str(), reply.length(), 0);
+
         } else {
             std::string reply = "502 Command not implemented\r\n";
             send(client_fd, reply.c_str(), reply.length(), 0);

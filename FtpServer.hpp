@@ -4,6 +4,8 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <string>
+#include <vector>
+#include <thread>
 
 
 
@@ -27,7 +29,7 @@ private:
     bool openPassiveDataConn(DataConn& dataconn, int control_fd);
     int  acceptPassiveDataConn(DataConn& dataconn);
     void closeDataConn(DataConn& dataconn);
-    
+
     int port_;
     int server_fd_;
 
